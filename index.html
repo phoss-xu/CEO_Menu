@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="format-detection" content="telephone=no">
+<meta name="referrer" content="no-referrer">
+<title>点餐菜单</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:#f5f5f5;color:#333;-webkit-text-size-adjust:100%;
+  }
+
+  /* 微信提示 */
+  .wechat-tip{
+    display:none;background:#FFF3CD;color:#856404;text-align:center;
+    font-size:13px;padding:8px 12px;line-height:1.5;border-bottom:1px solid #FFE69C;
+  }
+  .wechat-tip .close-tip{
+    position:absolute;right:10px;top:50%;transform:translateY(-50%);
+    background:none;border:none;font-size:18px;cursor:pointer;color:#856404;padding:4px 8px;
+  }
+
+  /* 固定顶部 */
+  .top-bar{
+    position:fixed;top:0;left:0;right:0;z-index:200;background:#FFAA00;
+  }
+  .header{
+    padding:10px 12px 8px;background:#FFAA00;
+  }
+  .header h1{
+    font-size:18px;font-weight:700;color:#333;text-align:center;margin-bottom:8px;
+  }
+  .search-wrap{
+    position:relative;max-width:600px;margin:0 auto;
+  }
+  .search-wrap input{
+    width:100%;height:36px;border:none;border-radius:18px;padding:0 40px 0 14px;
+    font-size:14px;background:rgba(255,255,255,0.95);color:#333;outline:none;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .search-wrap input::placeholder{color:#bbb}
+  .search-icon{
+    position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;
+  }
+
+  .category-bar{
+    display:flex;gap:6px;padding:8px 12px;overflow-x:auto;white-space:nowrap;
+    background:#fff;border-bottom:1px solid #eee;-webkit-overflow-scrolling:touch;
+  }
+  .category-bar::-webkit-scrollbar{display:none}
+  .category-chip{
+    display:inline-flex;align-items:center;gap:3px;padding:6px 12px;border-radius:16px;
+    font-size:13px;font-weight:500;background:#f0f0f0;color:#666;
+    border:none;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;user-select:none;
+  }
+  .category-chip.on{background:#FFAA00;color:#fff;font-weight:600}
+  .category-chip .n{font-size:11px;opacity:0.7}
+
+  /* 内容 */
+  .content{
+    padding:110px 12px 80px;max-width:600px;margin:0 auto;
+  }
+  .card{
+    background:#fff;border-radius:10px;padding:14px;margin-top:10px;
+    box-shadow:0 1px 6px rgba(0,0,0,0.06);
+  }
+  .card.hidden{display:none}
+
+  .card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .card-info{flex:1;min-width:0}
+  .card-name{font-size:16px;font-weight:600;color:#222;line-height:1.4}
+  .card-tag{
+    display:inline-block;font-size:11px;color:#E69500;background:#FFF7E6;
+    padding:2px 8px;border-radius:8px;margin-top:4px;
+  }
+  .card-btn{
+    flex-shrink:0;display:inline-flex;align-items:center;padding:7px 14px;border-radius:16px;
+    font-size:13px;font-weight:600;text-decoration:none;background:#FFAA00;color:#fff;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .card-btn:active{opacity:0.8}
+
+  .dish-block{margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px}
+  .dish-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;gap:8px}
+  .dish-row+.dish-row{border-top:1px dashed #f5f5f5}
+  .dish-name{font-size:13px;color:#666;flex:1;min-width:0}
+  .dish-btns{display:flex;gap:4px;flex-shrink:0}
+  .dish-link{
+    font-size:12px;color:#FF8800;text-decoration:none;padding:4px 10px;border-radius:10px;
+    background:#FFF3E0;font-weight:500;
+  }
+  .dish-link:active{background:#FFE0B2}
+
+  .empty-box{display:none;text-align:center;padding:50px 20px;color:#ccc}
+  .empty-box.show{display:block}
+  .empty-box .icon{font-size:44px;margin-bottom:10px}
+  .empty-box .txt{font-size:14px}
+
+  /* 回到顶部 */
+  .btn-top{
+    position:fixed;bottom:20px;right:16px;width:40px;height:40px;border-radius:50%;
+    background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.15);
+    border:none;font-size:18px;cursor:pointer;z-index:199;display:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .btn-top.on{display:flex;align-items:center;justify-content:center}
+
+  .no-js .card,.no-js .category-chip{/* all visible by default */}
+</style>
+</head>
+<body>
+
+<!-- 微信提示 -->
+<div class="wechat-tip" id="wechatTip">
+  建议<span style="font-weight:600">点击右上角</span>选择"<b>在浏览器中打开</b>"，体验更流畅
+  <button class="close-tip" id="closeTip">&times;</button>
+</div>
+
+<!-- 固定顶部 -->
+<div class="top-bar" id="topBar">
+  <div class="header">
+    <h1>点餐菜单</h1>
+    <div class="search-wrap">
+      <input type="search" id="searchInput" placeholder="搜索商家、菜品..." autocomplete="off">
+      <span class="search-icon">🔍</span>
+    </div>
+  </div>
+  <div class="category-bar" id="categoryBar">
+    <button class="category-chip on" data-cat="全部">全部 <span class="n">28</span></button>
+    <button class="category-chip" data-cat="日式">日式 <span class="n">6</span></button>
+    <button class="category-chip" data-cat="中式">中式 <span class="n">7</span></button>
+    <button class="category-chip" data-cat="川菜">川菜 <span class="n">2</span></button>
+    <button class="category-chip" data-cat="湖南菜">湖南菜 <span class="n">3</span></button>
+    <button class="category-chip" data-cat="徽菜">徽菜 <span class="n">1</span></button>
+    <button class="category-chip" data-cat="潮汕菜">潮汕菜 <span class="n">3</span></button>
+    <button class="category-chip" data-cat="西式">西式 <span class="n">3</span></button>
+    <button class="category-chip" data-cat="港式">港式 <span class="n">3</span></button>
+  </div>
+</div>
+
+<!-- 主体内容：全部静态 HTML，无 JS 也可见 -->
+<div class="content" id="content">
+
+  <!-- ====== 日式 ====== -->
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">吉野家</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/EhID3Mrz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+    <div class="dish-block">
+      <div class="dish-row">
+        <span class="dish-name">招牌牛肉饭+青菜</span>
+        <div class="dish-btns">
+          <a class="dish-link" href="http://dpurl.cn/NBPlEkGz" target="_blank" rel="noreferrer noopener">点餐1</a>
+          <a class="dish-link" href="http://dpurl.cn/wdjBfdiz" target="_blank" rel="noreferrer noopener">点餐2</a>
+        </div>
+      </div>
+      <div class="dish-row">
+        <span class="dish-name">蒲烧鳗鱼煎鸡双拼饭</span>
+        <div class="dish-btns">
+          <a class="dish-link" href="http://dpurl.cn/jPJMtsDz" target="_blank" rel="noreferrer noopener">点餐</a>
+        </div>
+      </div>
+      <div class="dish-row">
+        <span class="dish-name">日式炸猪排咖喱饭随心配套餐</span>
+        <div class="dish-btns">
+          <a class="dish-link" href="http://dpurl.cn/2qC10sSz" target="_blank" rel="noreferrer noopener">点餐</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">颜鲜烧鸟居酒屋</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/XvF3utaz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+    <div class="dish-block">
+      <div class="dish-row">
+        <span class="dish-name">鳗鱼炒饭+味增汤+海草</span>
+        <div class="dish-btns">
+          <a class="dish-link" href="http://dpurl.cn/OkSBqEPz" target="_blank" rel="noreferrer noopener">点餐</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">味千拉面</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/t8Y02GKz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">争鲜寿司</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/o8Necz3z" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">庆会楼韩国烤肉</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/OPRH54kz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <div class="card" data-cat="日式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">韩欢喜</div>
+        <span class="card-tag">日式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/pyaAgzMz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 中式 ====== -->
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">陈香贵兰州牛肉面</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/pplFj4dz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">老碗会</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/aAINlcJz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">喜家德虾仁水饺</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/mcK2I9Tz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">关陇食肆·西北面肉夹馍</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/uaLUY3rz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">袁记云饺</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/jKTTWsuz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">陈记三及第</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/Mno1HEEz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="中式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">卤之渝·凉菜&卤菜</div>
+        <span class="card-tag">中式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/LUASUoQz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 川菜 ====== -->
+  <div class="card" data-cat="川菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">蜀渝拌·重庆凉拌菜</div>
+        <span class="card-tag">川菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/q4fsxkSz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="川菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">湘裕阁·山湘土菜</div>
+        <span class="card-tag">川菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/SlbW3oMz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 湖南菜 ====== -->
+  <div class="card" data-cat="湖南菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">印象长沙·湖南土菜</div>
+        <span class="card-tag">湖南菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/wonKizKz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="湖南菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">渝月·川渝味道</div>
+        <span class="card-tag">湖南菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/ek9AAKaz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="湖南菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">农耕记·湖南土菜</div>
+        <span class="card-tag">湖南菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/wC1Dfo0z" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 徽菜 ====== -->
+  <div class="card" data-cat="徽菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">皖厨徽时</div>
+        <span class="card-tag">徽菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/e2yUI9pz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 潮汕菜 ====== -->
+  <div class="card" data-cat="潮汕菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">澄鹅潮汕菜</div>
+        <span class="card-tag">潮汕菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/yPLLvMJz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="潮汕菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">顺德佬</div>
+        <span class="card-tag">潮汕菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/PqH7CEmz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="潮汕菜">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">陈鹏鹏潮汕菜</div>
+        <span class="card-tag">潮汕菜</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/CeNBYcwz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 西式 ====== -->
+  <div class="card" data-cat="西式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">肯德基</div>
+        <span class="card-tag">西式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/mcRyiclz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="西式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">达美乐比萨</div>
+        <span class="card-tag">西式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/PxWKvzlz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="西式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">必胜客</div>
+        <span class="card-tag">西式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/kUe36Kuz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+  <!-- ====== 港式 ====== -->
+  <div class="card" data-cat="港式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">旺角冰室·茶餐厅</div>
+        <span class="card-tag">港式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/EAuJT90z" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="港式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">大家乐餐厅</div>
+        <span class="card-tag">港式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/GUE7w9Nz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+  <div class="card" data-cat="港式">
+    <div class="card-top">
+      <div class="card-info">
+        <div class="card-name">克茗冰室</div>
+        <span class="card-tag">港式</span>
+      </div>
+      <a class="card-btn" href="http://dpurl.cn/z5bOdkYz" target="_blank" rel="noreferrer noopener">去美团</a>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<div class="empty-box" id="emptyBox">
+  <div class="icon">🍽</div>
+  <div class="txt">没有找到匹配的商家</div>
+</div>
+
+<button class="btn-top" id="btnTop">⬆</button>
+
+<script>
+(function(){
+  var activeCat = '全部';
+  var query = '';
+
+  var $search = document.getElementById('searchInput');
+  var $catBar = document.getElementById('categoryBar');
+  var $cards = document.querySelectorAll('#content .card');
+  var $chips = $catBar.querySelectorAll('.category-chip');
+  var $empty = document.getElementById('emptyBox');
+  var $btnTop = document.getElementById('btnTop');
+  var $topBar = document.getElementById('topBar');
+  var $content = document.getElementById('content');
+  var $wechatTip = document.getElementById('wechatTip');
+  var $closeTip = document.getElementById('closeTip');
+
+  // 动态计算 content 的 padding-top
+  function fixPadding(){
+    $content.style.paddingTop = $topBar.offsetHeight + 'px';
+  }
+
+  // 微信检测
+  var isWechat = navigator.userAgent.toLowerCase().indexOf('micromessenger') !== -1;
+  if(isWechat){
+    $wechatTip.style.display = 'block';
+  }
+  $closeTip.addEventListener('click', function(){
+    $wechatTip.style.display = 'none';
+    fixPadding();
+  });
+  fixPadding();
+
+  // 过滤
+  function applyFilter(){
+    var q = query.toLowerCase().trim();
+    var visible = 0;
+    $cards.forEach(function(card){
+      var okCat = activeCat === '全部' || card.getAttribute('data-cat') === activeCat;
+      if(!okCat){ card.classList.add('hidden'); return; }
+      if(!q){ card.classList.remove('hidden'); visible++; return; }
+      var hit = card.textContent.toLowerCase().indexOf(q) >= 0;
+      if(hit){ card.classList.remove('hidden'); visible++; }
+      else card.classList.add('hidden');
+    });
+    $empty.classList.toggle('show', visible === 0);
+  }
+
+  // 搜索
+  $search.addEventListener('input', function(){
+    query = this.value;
+    applyFilter();
+  });
+
+  // 分类点击
+  $catBar.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    activeCat = btn.getAttribute('data-cat');
+    $chips.forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-cat') === activeCat); });
+    applyFilter();
+  });
+
+  // 回到顶部
+  window.addEventListener('scroll', function(){
+    $btnTop.classList.toggle('on', window.scrollY > 300);
+  });
+  $btnTop.addEventListener('click', function(){
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+
+  window.addEventListener('resize', fixPadding);
+})();
+</script>
+
+</body>
+</html>
